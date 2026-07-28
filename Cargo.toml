@@ -1,0 +1,93 @@
+[package]
+name = "honmoon-server"
+version = "0.1.0"
+edition = "2021"
+description = "Honmoon Sync Server - WebSocket relay for household sync"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Web framework
+axum = { version = "0.7", features = ["ws", "multipart"] }
+
+# WebSocket
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+
+# JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# JWT authentication
+jsonwebtoken = "9.2"
+
+# HMAC for TURN credentials
+hmac = "0.12"
+sha1 = "0.10"
+base64 = "0.21"
+
+# UUID for message IDs
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Regex for validation
+regex = "1.10"
+
+# Outgoing mail (newsletter confirmations)
+lettre = { version = "0.11", default-features = false, features = ["tokio1", "tokio1-native-tls", "smtp-transport", "builder", "hostname"] }
+
+# Environment config
+dotenvy = "0.15"
+
+# PostgreSQL database via sqlx
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-native-tls", "postgres"] }
+
+# HTTP client (for FCM push delivery)
+reqwest = { version = "0.12", features = ["json"] }
+
+# W3C Web Push (VAPID) for browser push notifications
+web-push = "0.10"
+
+# URL encoding (for OAuth callback redirect)
+urlencoding = "2.1"
+
+# Tower middleware
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "limit"] }
+
+# Rate limiting
+tower_governor = { version = "0.4", features = ["axum", "tracing"] }
+
+# SHA-256 for media checksum verification
+sha2 = "0.10"
+
+# Hex encoding for Stripe webhook signature verification
+hex = "0.4"
+
+# Constant-time comparison for webhook signature verification
+subtle = "2.5"
+
+# URL parsing for SSRF prevention
+url = "2.5"
+
+# Stream utilities for file streaming
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Ed25519 for server license verification
+ed25519-dalek = { version = "2.1", features = ["pkcs8", "pem"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

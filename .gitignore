@@ -1,0 +1,4 @@
+/target
+# Cargo.lock is committed (reproducible builds of the shipped server binary)
+*.env
+*.env.local

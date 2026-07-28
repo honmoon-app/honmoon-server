@@ -1,0 +1,90 @@
+# Honmoon Sync Server — self-hosted
+#
+# Start it:
+#   docker compose -f docker-compose.selfhost.yml up -d
+#
+# That is the entire setup. Secrets are generated on first boot and stored on
+# the honmoon-data volume (secrets.env, chmod 600), so they survive restarts.
+# No .env file, no `openssl rand`. Set any of them yourself and yours wins.
+#
+# Then make it reachable from outside your home network — the documented path
+# is Tailscale Funnel, which needs no domain, no public IP and no certificate:
+#   curl -fsSL https://tailscale.com/install.sh | sh
+#   tailscale up
+#   tailscale funnel 8080
+# Put the resulting https://machine.your-tailnet.ts.net into the app under
+# Settings → Sync → Server. Anyone with their own domain can instead point a
+# reverse proxy at port 8080.
+#
+# Optional env vars (all have working defaults):
+#   TURN_SERVER, BIND_ADDR, MEDIA_QUOTA_MB, MAX_UPLOAD_SIZE_MB, NTFY_URL
+
+services:
+  # PostgreSQL database. Deliberately has no published port — it is reachable
+  # only from the other containers, which is why the default password is fine.
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-honmoon}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-honmoon}
+      - POSTGRES_DB=${POSTGRES_DB:-honmoon}
+    restart: unless-stopped
+
+  honmoon-server:
+    image: ghcr.io/honmoon-app/honmoon-server:latest
+    ports:
+      - "${HONMOON_PORT:-8080}:8080"
+    volumes:
+      - honmoon-data:/app/data
+    environment:
+      - BIND_ADDR=0.0.0.0:8080
+      # Passed as pieces, not a pre-assembled DATABASE_URL: the server builds
+      # the URL itself and percent-encodes the password. Substituting the
+      # password into a URL here breaks on the first ':' or '@' in it, and
+      # the resulting InvalidPort restart loop points nowhere near the cause.
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-honmoon}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-honmoon}
+      - POSTGRES_DB=${POSTGRES_DB:-honmoon}
+      - TURN_SERVER=${TURN_SERVER:-localhost}
+      - SELF_HOSTED=true
+      # UnifiedPush wake-up backend (optional). `disabled` (or unset)
+      # short-circuits push fan-out — self-hosters without push run
+      # tier 0 / "open the app to read". Bring up the bundled ntfy with
+      # the `push` profile:
+      #   docker compose -f docker-compose.selfhost.yml --profile push up -d
+      - NTFY_URL=${NTFY_URL:-disabled}
+      - RUST_LOG=${RUST_LOG:-honmoon_server=info,tower_http=info}
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+  # UnifiedPush relay (opt-in self-host). Enable with `--profile push`
+  # to give your Honmoon users a private push channel. ~30 MB RAM, no
+  # Google dependency. Point your reverse proxy at this container on
+  # port 80 with a public hostname (e.g. ntfy.example.com).
+  # See docs/spec/18-push-delivery.md § Self-host deployment.
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    profiles: [push]
+    command: serve
+    environment:
+      - NTFY_BASE_URL=${NTFY_PUBLIC_URL:-https://ntfy.localhost}
+      - NTFY_LISTEN_HTTP=:80
+      - NTFY_BEHIND_PROXY=true
+      - NTFY_CACHE_FILE=/var/lib/ntfy/cache.db
+      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
+      - NTFY_AUTH_DEFAULT_ACCESS=write-only
+      - NTFY_ATTACHMENT_CACHE_DIR=/var/lib/ntfy/attachments
+    volumes:
+      - ntfy-data:/var/lib/ntfy
+    ports:
+      - "${NTFY_PORT:-8090}:80"
+    restart: unless-stopped
+
+volumes:
+  honmoon-data:
+  postgres-data:
+  ntfy-data:
